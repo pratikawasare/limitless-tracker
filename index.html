@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limitless Top 250 Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .stat-card h3 {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .section {
+            background: rgba(255,255,255,0.95);
+            color: #333;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            display: block;
+            margin: 20px auto;
+            transition: background 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+
+        .side-yes {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .side-no {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .address {
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Limitless Top 250 Tracker</h1>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <h3>Last Updated</h3>
+                <div class="value" id="lastUpdated">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Trades</h3>
+                <div class="value" id="activeTrades">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Top Markets</h3>
+                <div class="value" id="topMarkets">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Traders Tracked</h3>
+                <div class="value" id="tradersTracked">--</div>
+            </div>
+        </div>
+
+        <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
+
+        <div class="section">
+            <h2>🔥 Most Popular Markets (by Top 250 traders)</h2>
+            <div id="topMarketsTable">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading data...
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 Recent Active Trades</h2>
+            <div id="recentTradesTable">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading data...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                const response = await fetch('/api/aggregate');
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+
+                updateStats(data);
+                updateTopMarkets(data.topMarkets);
+                updateRecentTrades(data.recentTrades);
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('Error loading data: ' + error.message);
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('lastUpdated').textContent = 
+                new Date(data.timestamp).toLocaleTimeString();
+            document.getElementById('activeTrades').textContent = 
+                data.totalActiveTrades.toLocaleString();
+            document.getElementById('topMarkets').textContent = 
+                data.topMarkets.length;
+            document.getElementById('tradersTracked').textContent = 
+                data.leaderboardSize;
+        }
+
+        function updateTopMarkets(markets) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Market</th>
+                            <th>Traders</th>
+                            <th>Total Volume</th>
+                            <th>YES Bets</th>
+                            <th>NO Bets</th>
+                            <th>Sentiment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${markets.map(market => `
+                            <tr>
+                                <td><strong>${market.title || market.marketId}</strong></td>
+                                <td>${market.traders.length}</td>
+                                <td>$${market.totalVolume.toFixed(2)}</td>
+                                <td class="side-yes">${market.yesCount}</td>
+                                <td class="side-no">${market.noCount}</td>
+                                <td>${getSentiment(market.yesCount, market.noCount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('topMarketsTable').innerHTML = html;
+        }
+
+        function updateRecentTrades(trades) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Address</th>
+                            <th>Market</th>
+                            <th>Side</th>
+                            <th>Shares</th>
+                            <th>Unrealized P&L</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${trades.map(trade => `
+                            <tr>
+                                <td>#${trade.rank}</td>
+                                <td class="address">${trade.address}</td>
+                                <td>${trade.market || 'N/A'}</td>
+                                <td class="side-${trade.side?.toLowerCase()}">${trade.side}</td>
+                                <td>${trade.shares?.toFixed(2) || 'N/A'}</td>
+                                <td style="color: ${trade.unrealizedPnL >= 0 ? '#10b981' : '#ef4444'}">
+                                    ${trade.unrealizedPnL ? '$' + trade.unrealizedPnL.toFixed(2) : 'N/A'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('recentTradesTable').innerHTML = html;
+        }
+
+        function getSentiment(yes, no) {
+            const total = yes + no;
+            const yesPercent = (yes / total * 100).toFixed(0);
+            return `${yesPercent}% YES`;
+        }
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadData, 5 * 60 * 1000);
+
+        // Load on page load
+        loadData();
+    </script>
+</body>
+</html>
