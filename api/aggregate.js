@@ -12,8 +12,8 @@ module.exports = async (req, res) => {
     if (!tampermonkeyData || !tampermonkeyData.leaderboard) {
       return res.status(200).json({
         success: true,
-        message: '⚠️ No data yet. Please run Tampermonkey script on limitless.exchange/leaderboard',
-        instruction: '1. Install Tampermonkey script\n2. Visit limitless.exchange\n3. Click "Extract Data Now"\n4. Click "Send to Vercel"',
+        message: '⚠️ No data yet. Waiting for Tampermonkey to send data.',
+        instruction: 'Steps:\n1. Visit limitless.exchange/leaderboard\n2. Click "Extract Data Now"\n3. Click "Send to Vercel"',
         leaderboardSize: 0,
         totalActiveTrades: 0,
         topMarkets: [],
@@ -22,12 +22,14 @@ module.exports = async (req, res) => {
     }
 
     // Process the data
-    const leaderboard = tampermonkeyData.leaderboard;
+    const leaderboard = tampermonkeyData.leaderboard || [];
     const markets = Object.values(tampermonkeyData.markets || {});
+
+    console.log(`📊 Serving data: ${leaderboard.length} traders`);
 
     // Create market aggregation
     const marketAggregation = markets.map((market, index) => ({
-      title: market.title,
+      title: market.title || `Market ${index + 1}`,
       traders: [],
       totalVolume: 0,
       yesCount: 0,
@@ -40,12 +42,18 @@ module.exports = async (req, res) => {
       timestamp: tampermonkeyData.timestamp,
       dataSource: 'tampermonkey',
       leaderboardSize: leaderboard.length,
-      totalActiveTrades: 0, // Will be populated when we track individual bets
+      totalActiveTrades: leaderboard.length,
       topMarkets: marketAggregation.slice(0, 50),
-      recentTrades: [],
+      recentTrades: leaderboard.slice(0, 100).map(trader => ({
+        rank: trader.rank,
+        address: trader.address,
+        market: 'Leaderboard Position',
+        side: 'N/A',
+        shares: 0,
+        unrealizedPnL: 0
+      })),
       rawData: {
-        sampleTraders: leaderboard.slice(0, 10),
-        sampleMarkets: markets.slice(0, 5)
+        sampleTraders: leaderboard.slice(0, 5)
       }
     });
 
