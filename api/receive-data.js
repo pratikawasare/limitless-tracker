@@ -16,6 +16,9 @@ module.exports = async (req, res) => {
     try {
       const data = req.body;
       
+      console.log('📥 Received data from Tampermonkey');
+      console.log('Traders:', data.leaderboard?.length || 0);
+      
       // Validate data
       if (!data || !data.leaderboard) {
         return res.status(400).json({
@@ -27,7 +30,7 @@ module.exports = async (req, res) => {
       // Store in cache
       cache.set('limitless_data', data);
       
-      console.log(`✅ Received data: ${data.leaderboard.length} traders`);
+      console.log(`✅ Stored data: ${data.leaderboard.length} traders`);
 
       return res.status(200).json({
         success: true,
@@ -59,7 +62,8 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: data
+      data: data,
+      traders: data.leaderboard?.length || 0
     });
   }
 
