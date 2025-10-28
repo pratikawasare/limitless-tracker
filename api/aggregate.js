@@ -1,5 +1,5 @@
-const NodeCache = require('node-cache');
-const cache = new NodeCache({ stdTTL: 600 });
+const cache = require('../lib/dataStore');
+
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,3 +65,4 @@ module.exports = async (req, res) => {
     });
   }
 };
+
