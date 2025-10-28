@@ -1,4 +1,7 @@
-const cache = require('../lib/dataStore');
+// Simple in-memory storage (will persist during function lifetime)
+if (!global.limitlessData) {
+  global.limitlessData = null;
+}
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -26,14 +29,17 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Store in cache
-      cache.set('limitless_data', data);
+      // Store in global variable
+      global.limitlessData = {
+        ...data,
+        receivedAt: Date.now()
+      };
       
       console.log(`✅ Stored data: ${data.leaderboard.length} traders`);
 
       return res.status(200).json({
         success: true,
-        message: 'Data received successfully',
+        message: 'Data received and stored successfully',
         traders: data.leaderboard.length,
         markets: Object.keys(data.markets || {}).length,
         timestamp: data.timestamp
@@ -50,9 +56,7 @@ module.exports = async (req, res) => {
 
   // GET request - return stored data
   if (req.method === 'GET') {
-    const data = cache.get('limitless_data');
-    
-    if (!data) {
+    if (!global.limitlessData) {
       return res.status(404).json({
         success: false,
         message: 'No data available yet. Please extract data from Tampermonkey first.'
@@ -61,8 +65,8 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: data,
-      traders: data.leaderboard?.length || 0
+      data: global.limitlessData,
+      traders: global.limitlessData.leaderboard?.length || 0
     });
   }
 
