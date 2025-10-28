@@ -140,6 +140,24 @@
             font-family: monospace;
             font-size: 0.9em;
         }
+
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .warning {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
@@ -167,6 +185,8 @@
 
         <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
 
+        <div id="messageContainer"></div>
+
         <div class="section">
             <h2>🔥 Most Popular Markets (by Top 250 traders)</h2>
             <div id="topMarketsTable">
@@ -189,37 +209,77 @@
     </div>
 
     <script>
+        // Safe number formatting
+        function safeNumber(value, defaultValue = 0) {
+            if (value === undefined || value === null || isNaN(value)) {
+                return defaultValue;
+            }
+            return value;
+        }
+
+        function formatNumber(value) {
+            const num = safeNumber(value, 0);
+            return num.toLocaleString();
+        }
+
         async function loadData() {
             try {
+                document.getElementById('messageContainer').innerHTML = '';
+                
                 const response = await fetch('/api/aggregate');
                 const data = await response.json();
 
+                console.log('API Response:', data);
+
                 if (!data.success) {
-                    throw new Error(data.error);
+                    throw new Error(data.error || 'Failed to load data');
+                }
+
+                // Show warnings or messages
+                if (data.warning || data.message) {
+                    showMessage(data.warning || data.message, 'warning');
+                }
+
+                if (data.instruction) {
+                    showMessage('📌 ' + data.instruction, 'warning');
                 }
 
                 updateStats(data);
-                updateTopMarkets(data.topMarkets);
-                updateRecentTrades(data.recentTrades);
+                updateTopMarkets(data.topMarkets || []);
+                updateRecentTrades(data.recentTrades || []);
 
             } catch (error) {
                 console.error('Error loading data:', error);
-                alert('Error loading data: ' + error.message);
+                showMessage('❌ Error: ' + error.message, 'error');
             }
+        }
+
+        function showMessage(message, type = 'warning') {
+            const container = document.getElementById('messageContainer');
+            container.innerHTML = `<div class="${type}">${message}</div>`;
         }
 
         function updateStats(data) {
             document.getElementById('lastUpdated').textContent = 
-                new Date(data.timestamp).toLocaleTimeString();
+                data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '--';
+            
             document.getElementById('activeTrades').textContent = 
-                data.totalActiveTrades.toLocaleString();
+                formatNumber(data.totalActiveTrades);
+            
             document.getElementById('topMarkets').textContent = 
-                data.topMarkets.length;
+                formatNumber(data.topMarkets?.length);
+            
             document.getElementById('tradersTracked').textContent = 
-                data.leaderboardSize;
+                formatNumber(data.leaderboardSize);
         }
 
         function updateTopMarkets(markets) {
+            if (!markets || markets.length === 0) {
+                document.getElementById('topMarketsTable').innerHTML = 
+                    '<p style="padding: 20px; text-align: center;">No market data available yet. The API is still being discovered.</p>';
+                return;
+            }
+
             const html = `
                 <table>
                     <thead>
@@ -235,11 +295,11 @@
                     <tbody>
                         ${markets.map(market => `
                             <tr>
-                                <td><strong>${market.title || market.marketId}</strong></td>
-                                <td>${market.traders.length}</td>
-                                <td>$${market.totalVolume.toFixed(2)}</td>
-                                <td class="side-yes">${market.yesCount}</td>
-                                <td class="side-no">${market.noCount}</td>
+                                <td><strong>${market.title || market.marketId || 'Unknown'}</strong></td>
+                                <td>${formatNumber(market.traders?.length)}</td>
+                                <td>$${safeNumber(market.totalVolume).toFixed(2)}</td>
+                                <td class="side-yes">${formatNumber(market.yesCount)}</td>
+                                <td class="side-no">${formatNumber(market.noCount)}</td>
                                 <td>${getSentiment(market.yesCount, market.noCount)}</td>
                             </tr>
                         `).join('')}
@@ -250,6 +310,12 @@
         }
 
         function updateRecentTrades(trades) {
+            if (!trades || trades.length === 0) {
+                document.getElementById('recentTradesTable').innerHTML = 
+                    '<p style="padding: 20px; text-align: center;">No trade data available yet. The tracker is gathering information.</p>';
+                return;
+            }
+
             const html = `
                 <table>
                     <thead>
@@ -265,13 +331,13 @@
                     <tbody>
                         ${trades.map(trade => `
                             <tr>
-                                <td>#${trade.rank}</td>
-                                <td class="address">${trade.address}</td>
-                                <td>${trade.market || 'N/A'}</td>
-                                <td class="side-${trade.side?.toLowerCase()}">${trade.side}</td>
-                                <td>${trade.shares?.toFixed(2) || 'N/A'}</td>
-                                <td style="color: ${trade.unrealizedPnL >= 0 ? '#10b981' : '#ef4444'}">
-                                    ${trade.unrealizedPnL ? '$' + trade.unrealizedPnL.toFixed(2) : 'N/A'}
+                                <td>#${formatNumber(trade.rank)}</td>
+                                <td class="address">${trade.address || 'N/A'}</td>
+                                <td>${trade.market || 'Unknown'}</td>
+                                <td class="side-${(trade.side || '').toLowerCase()}">${trade.side || 'N/A'}</td>
+                                <td>${safeNumber(trade.shares).toFixed(2)}</td>
+                                <td style="color: ${safeNumber(trade.unrealizedPnL) >= 0 ? '#10b981' : '#ef4444'}">
+                                    $${safeNumber(trade.unrealizedPnL).toFixed(2)}
                                 </td>
                             </tr>
                         `).join('')}
@@ -282,8 +348,13 @@
         }
 
         function getSentiment(yes, no) {
-            const total = yes + no;
-            const yesPercent = (yes / total * 100).toFixed(0);
+            const yesNum = safeNumber(yes, 0);
+            const noNum = safeNumber(no, 0);
+            const total = yesNum + noNum;
+            
+            if (total === 0) return 'N/A';
+            
+            const yesPercent = ((yesNum / total) * 100).toFixed(0);
             return `${yesPercent}% YES`;
         }
 
