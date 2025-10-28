@@ -1,10 +1,14 @@
+const fs = require('fs');
+
+const DATA_FILE = '/tmp/limitless-data.json';
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    // Check if data exists in global storage
-    if (!global.limitlessData) {
+    // Check if data file exists
+    if (!fs.existsSync(DATA_FILE)) {
       return res.status(200).json({
         success: true,
         message: '⚠️ No data yet. Waiting for Tampermonkey to send data.',
@@ -16,11 +20,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    const tampermonkeyData = global.limitlessData;
+    // Read data from file
+    const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
+    const tampermonkeyData = JSON.parse(fileContent);
+    
     const leaderboard = tampermonkeyData.leaderboard || [];
     const markets = Object.values(tampermonkeyData.markets || {});
 
-    console.log(`✅ Serving data: ${leaderboard.length} traders from global storage`);
+    console.log(`✅ Serving data: ${leaderboard.length} traders from file storage`);
 
     // Create summary of top markets
     const topMarkets = markets.length > 0 ? 
@@ -49,6 +56,8 @@ module.exports = async (req, res) => {
       unrealizedPnL: 0
     }));
 
+    const dataAge = Math.round((Date.now() - tampermonkeyData.receivedAt) / 1000);
+
     res.status(200).json({
       success: true,
       timestamp: tampermonkeyData.timestamp || Date.now(),
@@ -60,7 +69,7 @@ module.exports = async (req, res) => {
       summary: {
         message: `Successfully tracking ${leaderboard.length} top traders from Limitless Exchange`,
         lastUpdate: new Date(tampermonkeyData.timestamp).toLocaleString(),
-        dataAge: Math.round((Date.now() - tampermonkeyData.receivedAt) / 1000) + ' seconds ago'
+        dataAge: dataAge + ' seconds ago'
       }
     });
 
