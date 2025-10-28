@@ -126,16 +126,6 @@
             background: #5568d3;
         }
 
-        .side-yes {
-            color: #10b981;
-            font-weight: bold;
-        }
-
-        .side-no {
-            color: #ef4444;
-            font-weight: bold;
-        }
-
         .address {
             font-family: monospace;
             font-size: 0.9em;
@@ -188,17 +178,7 @@
         <div id="messageContainer"></div>
 
         <div class="section">
-            <h2>🔥 Most Popular Markets (by Top 250 traders)</h2>
-            <div id="topMarketsTable">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Loading data...
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>📊 Recent Active Trades</h2>
+            <h2>📊 Top Traders from Limitless Exchange</h2>
             <div id="recentTradesTable">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -241,8 +221,6 @@
                     document.getElementById('topMarkets').textContent = '0';
                     document.getElementById('tradersTracked').textContent = '0';
                     
-                    document.getElementById('topMarketsTable').innerHTML = 
-                        '<p style="padding: 20px; text-align: center;">No market data available yet. Please run Tampermonkey script.</p>';
                     document.getElementById('recentTradesTable').innerHTML = 
                         '<p style="padding: 20px; text-align: center;">No trade data available yet. Please run Tampermonkey script.</p>';
                     
@@ -252,10 +230,9 @@
                 // Extract the actual data
                 const data = result.data;
                 const leaderboard = data.leaderboard || [];
-                const markets = Object.values(data.markets || {});
 
                 console.log('Leaderboard:', leaderboard.length, 'traders');
-                console.log('Markets:', markets.length);
+                console.log('Sample trader:', leaderboard[0]);
 
                 // Update stats
                 document.getElementById('lastUpdated').textContent = 
@@ -264,30 +241,13 @@
                 document.getElementById('activeTrades').textContent = 
                     formatNumber(leaderboard.length);
                 
-                document.getElementById('topMarkets').textContent = 
-                    formatNumber(markets.length || 1);
+                document.getElementById('topMarkets').textContent = '1';
                 
                 document.getElementById('tradersTracked').textContent = 
                     formatNumber(leaderboard.length);
 
-                // Create top markets display
-                const topMarkets = markets.length > 0 ? markets : [{
-                    title: 'Leaderboard Tracking Active',
-                    traders: leaderboard.slice(0, 10)
-                }];
-
-                // Create recent trades from leaderboard
-                const recentTrades = leaderboard.map(trader => ({
-                    rank: trader.rank || 0,
-                    address: trader.address,
-                    market: 'Limitless Exchange',
-                    side: 'Tracked',
-                    shares: 0,
-                    unrealizedPnL: 0
-                }));
-
-                updateTopMarkets(topMarkets);
-                updateRecentTrades(recentTrades);
+                // Pass the raw leaderboard data directly
+                updateRecentTrades(leaderboard);
 
                 showMessage(`✅ Successfully loaded ${leaderboard.length} traders!`, 'warning');
 
@@ -300,42 +260,6 @@
         function showMessage(message, type = 'warning') {
             const container = document.getElementById('messageContainer');
             container.innerHTML = `<div class="${type}">${message}</div>`;
-        }
-
-        function updateTopMarkets(markets) {
-            if (!markets || markets.length === 0) {
-                document.getElementById('topMarketsTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No market data available yet.</p>';
-                return;
-            }
-
-            const html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Market</th>
-                            <th>Traders</th>
-                            <th>Total Volume</th>
-                            <th>YES Bets</th>
-                            <th>NO Bets</th>
-                            <th>Sentiment</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${markets.map(market => `
-                            <tr>
-                                <td><strong>${market.title || market.marketId || 'Unknown'}</strong></td>
-                                <td>${formatNumber(market.traders?.length || 0)}</td>
-                                <td>$${safeNumber(market.totalVolume).toFixed(2)}</td>
-                                <td class="side-yes">${formatNumber(market.yesCount || 0)}</td>
-                                <td class="side-no">${formatNumber(market.noCount || 0)}</td>
-                                <td>${getSentiment(market.yesCount, market.noCount)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            document.getElementById('topMarketsTable').innerHTML = html;
         }
 
         function updateRecentTrades(trades) {
@@ -351,40 +275,32 @@
                         <tr>
                             <th>Rank</th>
                             <th>Address</th>
-                            <th>Market</th>
-                            <th>Side</th>
-                            <th>Shares</th>
-                            <th>Unrealized P&L</th>
+                            <th>Extracted Data</th>
+                            <th>Raw Text</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${trades.map(trade => `
-                            <tr>
-                                <td>#${formatNumber(trade.rank)}</td>
-                                <td class="address">${trade.address || 'N/A'}</td>
-                                <td>${trade.market || 'Unknown'}</td>
-                                <td class="side-${(trade.side || '').toLowerCase()}">${trade.side || 'N/A'}</td>
-                                <td>${safeNumber(trade.shares).toFixed(2)}</td>
-                                <td style="color: ${safeNumber(trade.unrealizedPnL) >= 0 ? '#10b981' : '#ef4444'}">
-                                    $${safeNumber(trade.unrealizedPnL).toFixed(2)}
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${trades.map(trade => {
+                            // Get the actual rank from the trade data
+                            const rank = trade.rank && trade.rank > 0 ? trade.rank : 'N/A';
+                            
+                            // Get numbers from the raw data if available
+                            const numbers = trade.numbers || [];
+                            const volumeData = numbers.length > 0 ? numbers.join(' | ') : 'No data';
+                            
+                            return `
+                                <tr>
+                                    <td><strong style="font-size: 1.2em; color: #667eea;">#${rank}</strong></td>
+                                    <td class="address">${trade.address || 'N/A'}</td>
+                                    <td><strong style="color: #10b981;">${volumeData}</strong></td>
+                                    <td style="font-size: 0.85em; color: #666;">${trade.rawText ? trade.rawText.substring(0, 60) + '...' : 'N/A'}</td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
             document.getElementById('recentTradesTable').innerHTML = html;
-        }
-
-        function getSentiment(yes, no) {
-            const yesNum = safeNumber(yes, 0);
-            const noNum = safeNumber(no, 0);
-            const total = yesNum + noNum;
-            
-            if (total === 0) return 'N/A';
-            
-            const yesPercent = ((yesNum / total) * 100).toFixed(0);
-            return `${yesPercent}% YES`;
         }
 
         // Auto-refresh every 5 minutes
