@@ -1,7 +1,7 @@
-// Simple in-memory storage (will persist during function lifetime)
-if (!global.limitlessData) {
-  global.limitlessData = null;
-}
+const fs = require('fs');
+const path = require('path');
+
+const DATA_FILE = '/tmp/limitless-data.json';
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -29,20 +29,21 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Store in global variable
-      global.limitlessData = {
-        ...data,
-        receivedAt: Date.now()
-      };
+      // Add received timestamp
+      data.receivedAt = Date.now();
+
+      // Write to file
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data));
       
-      console.log(`✅ Stored data: ${data.leaderboard.length} traders`);
+      console.log(`✅ Stored ${data.leaderboard.length} traders to file`);
 
       return res.status(200).json({
         success: true,
         message: 'Data received and stored successfully',
         traders: data.leaderboard.length,
         markets: Object.keys(data.markets || {}).length,
-        timestamp: data.timestamp
+        timestamp: data.timestamp,
+        storedAt: DATA_FILE
       });
 
     } catch (error) {
@@ -56,18 +57,29 @@ module.exports = async (req, res) => {
 
   // GET request - return stored data
   if (req.method === 'GET') {
-    if (!global.limitlessData) {
-      return res.status(404).json({
+    try {
+      if (!fs.existsSync(DATA_FILE)) {
+        return res.status(404).json({
+          success: false,
+          message: 'No data available yet. Please extract data from Tampermonkey first.'
+        });
+      }
+
+      const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
+      const data = JSON.parse(fileContent);
+
+      return res.status(200).json({
+        success: true,
+        data: data,
+        traders: data.leaderboard?.length || 0
+      });
+
+    } catch (error) {
+      return res.status(500).json({
         success: false,
-        message: 'No data available yet. Please extract data from Tampermonkey first.'
+        error: error.message
       });
     }
-
-    return res.status(200).json({
-      success: true,
-      data: global.limitlessData,
-      traders: global.limitlessData.leaderboard?.length || 0
-    });
   }
 
   return res.status(405).json({
