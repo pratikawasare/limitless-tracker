@@ -226,31 +226,74 @@
             try {
                 document.getElementById('messageContainer').innerHTML = '';
                 
-                const response = await fetch('/api/aggregate');
-                const data = await response.json();
+                // Fetch directly from receive-data endpoint
+                const response = await fetch('/api/receive-data');
+                const result = await response.json();
 
-                console.log('API Response:', data);
+                console.log('API Response:', result);
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load data');
+                if (!result.success) {
+                    showMessage(result.message || 'No data available yet. Please send data from Tampermonkey.', 'warning');
+                    
+                    // Reset stats to zero
+                    document.getElementById('lastUpdated').textContent = '--';
+                    document.getElementById('activeTrades').textContent = '0';
+                    document.getElementById('topMarkets').textContent = '0';
+                    document.getElementById('tradersTracked').textContent = '0';
+                    
+                    document.getElementById('topMarketsTable').innerHTML = 
+                        '<p style="padding: 20px; text-align: center;">No market data available yet. Please run Tampermonkey script.</p>';
+                    document.getElementById('recentTradesTable').innerHTML = 
+                        '<p style="padding: 20px; text-align: center;">No trade data available yet. Please run Tampermonkey script.</p>';
+                    
+                    return;
                 }
 
-                // Show warnings or messages
-                if (data.warning || data.message) {
-                    showMessage(data.warning || data.message, 'warning');
-                }
+                // Extract the actual data
+                const data = result.data;
+                const leaderboard = data.leaderboard || [];
+                const markets = Object.values(data.markets || {});
 
-                if (data.instruction) {
-                    showMessage('📌 ' + data.instruction, 'warning');
-                }
+                console.log('Leaderboard:', leaderboard.length, 'traders');
+                console.log('Markets:', markets.length);
 
-                updateStats(data);
-                updateTopMarkets(data.topMarkets || []);
-                updateRecentTrades(data.recentTrades || []);
+                // Update stats
+                document.getElementById('lastUpdated').textContent = 
+                    data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '--';
+                
+                document.getElementById('activeTrades').textContent = 
+                    formatNumber(leaderboard.length);
+                
+                document.getElementById('topMarkets').textContent = 
+                    formatNumber(markets.length || 1);
+                
+                document.getElementById('tradersTracked').textContent = 
+                    formatNumber(leaderboard.length);
+
+                // Create top markets display
+                const topMarkets = markets.length > 0 ? markets : [{
+                    title: 'Leaderboard Tracking Active',
+                    traders: leaderboard.slice(0, 10)
+                }];
+
+                // Create recent trades from leaderboard
+                const recentTrades = leaderboard.map(trader => ({
+                    rank: trader.rank || 0,
+                    address: trader.address,
+                    market: 'Limitless Exchange',
+                    side: 'Tracked',
+                    shares: 0,
+                    unrealizedPnL: 0
+                }));
+
+                updateTopMarkets(topMarkets);
+                updateRecentTrades(recentTrades);
+
+                showMessage(`✅ Successfully loaded ${leaderboard.length} traders!`, 'warning');
 
             } catch (error) {
                 console.error('Error loading data:', error);
-                showMessage('❌ Error: ' + error.message, 'error');
+                showMessage('⚠️ No data yet. Please visit limitless.exchange/leaderboard and click "Send to Vercel" in Tampermonkey.', 'warning');
             }
         }
 
@@ -259,24 +302,10 @@
             container.innerHTML = `<div class="${type}">${message}</div>`;
         }
 
-        function updateStats(data) {
-            document.getElementById('lastUpdated').textContent = 
-                data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '--';
-            
-            document.getElementById('activeTrades').textContent = 
-                formatNumber(data.totalActiveTrades);
-            
-            document.getElementById('topMarkets').textContent = 
-                formatNumber(data.topMarkets?.length);
-            
-            document.getElementById('tradersTracked').textContent = 
-                formatNumber(data.leaderboardSize);
-        }
-
         function updateTopMarkets(markets) {
             if (!markets || markets.length === 0) {
                 document.getElementById('topMarketsTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No market data available yet. The API is still being discovered.</p>';
+                    '<p style="padding: 20px; text-align: center;">No market data available yet.</p>';
                 return;
             }
 
@@ -296,10 +325,10 @@
                         ${markets.map(market => `
                             <tr>
                                 <td><strong>${market.title || market.marketId || 'Unknown'}</strong></td>
-                                <td>${formatNumber(market.traders?.length)}</td>
+                                <td>${formatNumber(market.traders?.length || 0)}</td>
                                 <td>$${safeNumber(market.totalVolume).toFixed(2)}</td>
-                                <td class="side-yes">${formatNumber(market.yesCount)}</td>
-                                <td class="side-no">${formatNumber(market.noCount)}</td>
+                                <td class="side-yes">${formatNumber(market.yesCount || 0)}</td>
+                                <td class="side-no">${formatNumber(market.noCount || 0)}</td>
                                 <td>${getSentiment(market.yesCount, market.noCount)}</td>
                             </tr>
                         `).join('')}
@@ -312,7 +341,7 @@
         function updateRecentTrades(trades) {
             if (!trades || trades.length === 0) {
                 document.getElementById('recentTradesTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No trade data available yet. The tracker is gathering information.</p>';
+                    '<p style="padding: 20px; text-align: center;">No trade data available yet.</p>';
                 return;
             }
 
