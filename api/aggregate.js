@@ -1,100 +1,59 @@
-const LimitlessScraper = require('../lib/scraper');
 const NodeCache = require('node-cache');
-
-const cache = new NodeCache({ stdTTL: 300 });
+const cache = new NodeCache({ stdTTL: 600 });
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    const scraper = new LimitlessScraper();
-    
-    // Get leaderboard
-    const leaderboard = await scraper.getLeaderboard();
-    
-    // Log the data source
-    console.log('Leaderboard source:', leaderboard.source);
-    console.log('User count:', leaderboard.users.length);
+    // Get data from Tampermonkey
+    const tampermonkeyData = cache.get('limitless_data');
 
-    if (leaderboard.error) {
+    if (!tampermonkeyData || !tampermonkeyData.leaderboard) {
       return res.status(200).json({
         success: true,
-        message: 'Using test data. Check endpoint logs in Vercel dashboard.',
-        warning: leaderboard.error,
-        leaderboardSize: leaderboard.users.length,
+        message: '⚠️ No data yet. Please run Tampermonkey script on limitless.exchange/leaderboard',
+        instruction: '1. Install Tampermonkey script\n2. Visit limitless.exchange\n3. Click "Extract Data Now"\n4. Click "Send to Vercel"',
+        leaderboardSize: 0,
+        totalActiveTrades: 0,
         topMarkets: [],
-        recentTrades: [],
-        instruction: 'Open browser DevTools on limitless.exchange/leaderboard to find real API endpoint'
+        recentTrades: []
       });
     }
 
-    // Get user bets (only top 50)
-    const userBets = await scraper.getAllTopUsersBets(leaderboard.users);
+    // Process the data
+    const leaderboard = tampermonkeyData.leaderboard;
+    const markets = Object.values(tampermonkeyData.markets || {});
 
-    // Aggregate by market
-    const marketAggregation = {};
-    const activeTrades = [];
-
-    userBets.forEach((userData) => {
-      if (!userData.bets?.activeBets) return;
-
-      userData.bets.activeBets.forEach(bet => {
-        const marketKey = bet.marketId || bet.marketTitle || 'Unknown';
-        
-        if (!marketAggregation[marketKey]) {
-          marketAggregation[marketKey] = {
-            marketId: bet.marketId,
-            title: bet.marketTitle || marketKey,
-            traders: [],
-            totalVolume: 0,
-            yesCount: 0,
-            noCount: 0
-          };
-        }
-
-        marketAggregation[marketKey].traders.push({
-          rank: userData.rank,
-          address: userData.address,
-          side: bet.side,
-          shares: bet.shares || 0
-        });
-
-        marketAggregation[marketKey].totalVolume += (bet.shares * bet.avgPrice) || 0;
-        if (bet.side?.toUpperCase() === 'YES') marketAggregation[marketKey].yesCount++;
-        else marketAggregation[marketKey].noCount++;
-
-        activeTrades.push({
-          rank: userData.rank,
-          address: userData.address,
-          market: bet.marketTitle || 'Unknown Market',
-          side: bet.side,
-          shares: bet.shares || 0,
-          unrealizedPnL: bet.unrealizedPnL || 0
-        });
-      });
-    });
-
-    const topMarkets = Object.values(marketAggregation)
-      .sort((a, b) => b.traders.length - a.traders.length)
-      .slice(0, 50);
+    // Create market aggregation
+    const marketAggregation = markets.map((market, index) => ({
+      title: market.title,
+      traders: [],
+      totalVolume: 0,
+      yesCount: 0,
+      noCount: 0,
+      rank: index + 1
+    }));
 
     res.status(200).json({
       success: true,
-      timestamp: Date.now(),
-      dataSource: leaderboard.source,
-      leaderboardSize: leaderboard.users.length,
-      totalActiveTrades: activeTrades.length,
-      topMarkets,
-      recentTrades: activeTrades.slice(0, 100)
+      timestamp: tampermonkeyData.timestamp,
+      dataSource: 'tampermonkey',
+      leaderboardSize: leaderboard.length,
+      totalActiveTrades: 0, // Will be populated when we track individual bets
+      topMarkets: marketAggregation.slice(0, 50),
+      recentTrades: [],
+      rawData: {
+        sampleTraders: leaderboard.slice(0, 10),
+        sampleMarkets: markets.slice(0, 5)
+      }
     });
 
   } catch (error) {
     console.error('Aggregate error:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
-      instruction: 'Check Vercel deployment logs for endpoint testing results'
+      error: error.message
     });
   }
 };
