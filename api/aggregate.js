@@ -3,17 +3,8 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    // Fetch data from receive-data endpoint
-    const baseUrl = `https://${req.headers.host}`;
-    
-    console.log('Fetching data from:', `${baseUrl}/api/receive-data`);
-    
-    const dataResponse = await fetch(`${baseUrl}/api/receive-data`);
-    const result = await dataResponse.json();
-
-    console.log('Fetch result:', result.success, 'Traders:', result.traders);
-
-    if (!result.success || !result.data) {
+    // Check if data exists in global storage
+    if (!global.limitlessData) {
       return res.status(200).json({
         success: true,
         message: '⚠️ No data yet. Waiting for Tampermonkey to send data.',
@@ -25,13 +16,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    const tampermonkeyData = result.data;
+    const tampermonkeyData = global.limitlessData;
     const leaderboard = tampermonkeyData.leaderboard || [];
     const markets = Object.values(tampermonkeyData.markets || {});
 
-    console.log(`✅ Serving data: ${leaderboard.length} traders`);
+    console.log(`✅ Serving data: ${leaderboard.length} traders from global storage`);
 
-    // Create summary of top markets (even if empty for now)
+    // Create summary of top markets
     const topMarkets = markets.length > 0 ? 
       markets.slice(0, 50).map((market, index) => ({
         title: market.title || `Market ${index + 1}`,
@@ -41,8 +32,8 @@ module.exports = async (req, res) => {
         noCount: 0
       })) : 
       [{
-        title: 'Data Collection in Progress',
-        traders: [],
+        title: 'Leaderboard Tracking Active',
+        traders: leaderboard.slice(0, 10).map(t => ({ address: t.address, rank: t.rank })),
         totalVolume: 0,
         yesCount: 0,
         noCount: 0
@@ -68,7 +59,8 @@ module.exports = async (req, res) => {
       recentTrades: recentTrades,
       summary: {
         message: `Successfully tracking ${leaderboard.length} top traders from Limitless Exchange`,
-        lastUpdate: new Date(tampermonkeyData.timestamp).toLocaleString()
+        lastUpdate: new Date(tampermonkeyData.timestamp).toLocaleString(),
+        dataAge: Math.round((Date.now() - tampermonkeyData.receivedAt) / 1000) + ' seconds ago'
       }
     });
 
@@ -77,7 +69,7 @@ module.exports = async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message,
-      details: 'Check Vercel function logs for more info'
+      details: error.stack
     });
   }
 };
