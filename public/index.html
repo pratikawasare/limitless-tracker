@@ -128,16 +128,10 @@
 
         .address {
             font-family: monospace;
-            font-size: 0.9em;
-        }
-
-        .error {
-            background: #fef2f2;
-            border: 1px solid #fca5a5;
-            color: #991b1b;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
+            font-size: 0.85em;
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
         }
 
         .warning {
@@ -148,28 +142,47 @@
             border-radius: 8px;
             margin: 20px 0;
         }
+
+        .rank-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        .volume {
+            color: #10b981;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .pnl {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎯 Limitless Top 250 Tracker</h1>
         
-        <div class="stats" id="stats">
+        <div class="stats">
             <div class="stat-card">
                 <h3>Last Updated</h3>
                 <div class="value" id="lastUpdated">--</div>
             </div>
             <div class="stat-card">
-                <h3>Active Trades</h3>
-                <div class="value" id="activeTrades">--</div>
-            </div>
-            <div class="stat-card">
-                <h3>Top Markets</h3>
-                <div class="value" id="topMarkets">--</div>
-            </div>
-            <div class="stat-card">
                 <h3>Traders Tracked</h3>
                 <div class="value" id="tradersTracked">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Volume</h3>
+                <div class="value" id="totalVolume">$--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg Per Trader</h3>
+                <div class="value" id="avgVolume">$--</div>
             </div>
         </div>
 
@@ -178,8 +191,8 @@
         <div id="messageContainer"></div>
 
         <div class="section">
-            <h2>📊 Top Traders from Limitless Exchange</h2>
-            <div id="recentTradesTable">
+            <h2>📊 Top Traders Leaderboard</h2>
+            <div id="tradersTable">
                 <div class="loading">
                     <div class="spinner"></div>
                     Loading data...
@@ -189,72 +202,69 @@
     </div>
 
     <script>
-        // Safe number formatting
-        function safeNumber(value, defaultValue = 0) {
-            if (value === undefined || value === null || isNaN(value)) {
-                return defaultValue;
-            }
-            return value;
+        function formatNumber(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString();
         }
 
-        function formatNumber(value) {
-            const num = safeNumber(value, 0);
-            return num.toLocaleString();
+        function formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return '$' + num.toLocaleString();
         }
 
         async function loadData() {
             try {
                 document.getElementById('messageContainer').innerHTML = '';
                 
-                // Fetch directly from receive-data endpoint
                 const response = await fetch('/api/receive-data');
                 const result = await response.json();
 
                 console.log('API Response:', result);
 
                 if (!result.success) {
-                    showMessage(result.message || 'No data available yet. Please send data from Tampermonkey.', 'warning');
-                    
-                    // Reset stats to zero
-                    document.getElementById('lastUpdated').textContent = '--';
-                    document.getElementById('activeTrades').textContent = '0';
-                    document.getElementById('topMarkets').textContent = '0';
-                    document.getElementById('tradersTracked').textContent = '0';
-                    
-                    document.getElementById('recentTradesTable').innerHTML = 
-                        '<p style="padding: 20px; text-align: center;">No trade data available yet. Please run Tampermonkey script.</p>';
-                    
+                    showMessage(result.message || 'No data available yet.', 'warning');
+                    resetStats();
                     return;
                 }
 
-                // Extract the actual data
                 const data = result.data;
                 const leaderboard = data.leaderboard || [];
 
                 console.log('Leaderboard:', leaderboard.length, 'traders');
-                console.log('Sample trader:', leaderboard[0]);
+                console.log('Sample:', leaderboard[0]);
+
+                // Calculate stats
+                let totalVolume = 0;
+                leaderboard.forEach(trader => {
+                    const vol = parseFloat(trader.volume?.toString().replace(/,/g, '')) || 0;
+                    totalVolume += vol;
+                });
+                const avgVolume = leaderboard.length > 0 ? totalVolume / leaderboard.length : 0;
 
                 // Update stats
                 document.getElementById('lastUpdated').textContent = 
-                    data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '--';
-                
-                document.getElementById('activeTrades').textContent = 
-                    formatNumber(leaderboard.length);
-                
-                document.getElementById('topMarkets').textContent = '1';
-                
-                document.getElementById('tradersTracked').textContent = 
-                    formatNumber(leaderboard.length);
+                    new Date(data.timestamp).toLocaleTimeString();
+                document.getElementById('tradersTracked').textContent = formatNumber(leaderboard.length);
+                document.getElementById('totalVolume').textContent = formatCurrency(totalVolume);
+                document.getElementById('avgVolume').textContent = formatCurrency(avgVolume);
 
-                // Pass the raw leaderboard data directly
-                updateRecentTrades(leaderboard);
-
+                updateTable(leaderboard);
                 showMessage(`✅ Successfully loaded ${leaderboard.length} traders!`, 'warning');
 
             } catch (error) {
-                console.error('Error loading data:', error);
-                showMessage('⚠️ No data yet. Please visit limitless.exchange/leaderboard and click "Send to Vercel" in Tampermonkey.', 'warning');
+                console.error('Error:', error);
+                showMessage('⚠️ No data yet. Visit limitless.exchange/leaderboard and click "Send to Vercel".', 'warning');
+                resetStats();
             }
+        }
+
+        function resetStats() {
+            document.getElementById('lastUpdated').textContent = '--';
+            document.getElementById('tradersTracked').textContent = '--';
+            document.getElementById('totalVolume').textContent = '$--';
+            document.getElementById('avgVolume').textContent = '$--';
+            document.getElementById('tradersTable').innerHTML = 
+                '<p style="padding: 20px; text-align: center;">No data available.</p>';
         }
 
         function showMessage(message, type = 'warning') {
@@ -262,10 +272,10 @@
             container.innerHTML = `<div class="${type}">${message}</div>`;
         }
 
-        function updateRecentTrades(trades) {
-            if (!trades || trades.length === 0) {
-                document.getElementById('recentTradesTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No trade data available yet.</p>';
+        function updateTable(traders) {
+            if (!traders || traders.length === 0) {
+                document.getElementById('tradersTable').innerHTML = 
+                    '<p style="padding: 20px; text-align: center;">No traders found.</p>';
                 return;
             }
 
@@ -275,38 +285,30 @@
                         <tr>
                             <th>Rank</th>
                             <th>Address</th>
-                            <th>Extracted Data</th>
-                            <th>Raw Text</th>
+                            <th>Username</th>
+                            <th>Volume</th>
+                            <th>P&L</th>
+                            <th>Win Rate</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${trades.map(trade => {
-                            // Get the actual rank from the trade data
-                            const rank = trade.rank && trade.rank > 0 ? trade.rank : 'N/A';
-                            
-                            // Get numbers from the raw data if available
-                            const numbers = trade.numbers || [];
-                            const volumeData = numbers.length > 0 ? numbers.join(' | ') : 'No data';
-                            
-                            return `
-                                <tr>
-                                    <td><strong style="font-size: 1.2em; color: #667eea;">#${rank}</strong></td>
-                                    <td class="address">${trade.address || 'N/A'}</td>
-                                    <td><strong style="color: #10b981;">${volumeData}</strong></td>
-                                    <td style="font-size: 0.85em; color: #666;">${trade.rawText ? trade.rawText.substring(0, 60) + '...' : 'N/A'}</td>
-                                </tr>
-                            `;
-                        }).join('')}
+                        ${traders.map(trader => `
+                            <tr>
+                                <td><span class="rank-badge">#${trader.rank}</span></td>
+                                <td><span class="address">${trader.address}</span></td>
+                                <td>${trader.username || '--'}</td>
+                                <td class="volume">${formatCurrency(trader.volume?.toString().replace(/,/g, ''))}</td>
+                                <td class="pnl">${formatCurrency(trader.pnl?.toString().replace(/,/g, ''))}</td>
+                                <td>${trader.winRate || '--'}%</td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
             `;
-            document.getElementById('recentTradesTable').innerHTML = html;
+            document.getElementById('tradersTable').innerHTML = html;
         }
 
-        // Auto-refresh every 5 minutes
         setInterval(loadData, 5 * 60 * 1000);
-
-        // Load on page load
         loadData();
     </script>
 </body>
