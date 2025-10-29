@@ -3,44 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Limitless Tracker</title>
+    <title>Limitless Tracker - Fully Automated</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
             padding: 20px;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 30px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; }
         .stats {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
         .stat-card {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 15px;
         }
-        .stat-card h3 { font-size: 0.9em; margin-bottom: 10px; }
+        .stat-card h3 { font-size: 0.9em; opacity: 0.8; margin-bottom: 10px; }
         .stat-card .value { font-size: 2em; font-weight: bold; }
         .section {
-            background: white;
+            background: rgba(255,255,255,0.95);
             color: #333;
-            border-radius: 10px;
+            border-radius: 15px;
             padding: 25px;
             margin-bottom: 20px;
         }
+        .section h2 { margin-bottom: 20px; color: #667eea; }
         table { width: 100%; border-collapse: collapse; }
-        th {
-            background: #667eea;
-            color: white;
-            padding: 12px;
-            text-align: left;
-        }
+        th { background: #667eea; color: white; padding: 12px; text-align: left; }
         td { padding: 12px; border-bottom: 1px solid #eee; }
         tr:hover { background: #f5f5f5; }
         .address {
@@ -50,14 +47,14 @@
             border-radius: 4px;
             font-size: 0.85em;
         }
-        .rank { 
-            background: #667eea;
+        .rank {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 6px 12px;
             border-radius: 6px;
             font-weight: bold;
         }
-        .volume { color: #10b981; font-weight: bold; }
+        .volume { color: #10b981; font-weight: bold; font-size: 1.1em; }
         button {
             background: #667eea;
             color: white;
@@ -70,6 +67,7 @@
             margin: 20px auto;
         }
         button:hover { background: #5568d3; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .message {
             padding: 15px;
             border-radius: 8px;
@@ -77,11 +75,37 @@
         }
         .success { background: #d1fae5; color: #065f46; }
         .error { background: #fee2e2; color: #991b1b; }
+        .warning { background: #fffbeb; color: #92400e; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .auto-badge {
+            background: #10b981;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎯 Limitless Top Traders Tracker</h1>
+        <h1>🎯 Limitless Tracker <span class="auto-badge">FULLY AUTOMATED</span></h1>
         
         <div class="stats">
             <div class="stat-card">
@@ -89,7 +113,7 @@
                 <div class="value" id="lastUpdated">--</div>
             </div>
             <div class="stat-card">
-                <h3>Traders</h3>
+                <h3>Traders Tracked</h3>
                 <div class="value" id="tradersCount">--</div>
             </div>
             <div class="stat-card">
@@ -102,41 +126,69 @@
             </div>
         </div>
 
-        <button onclick="loadData()">🔄 Refresh</button>
+        <button onclick="loadData()" id="refreshBtn">🔄 Refresh Now</button>
 
         <div id="message"></div>
 
         <div class="section">
-            <h2>📊 Top Traders</h2>
-            <div id="content">Loading...</div>
+            <h2>📊 Top Traders from Limitless Exchange</h2>
+            <div id="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Scraping live data from Limitless Exchange...</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         async function loadData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Scraping...';
+            
             try {
-                const res = await fetch('/api/receive-data');
-                const data = await res.json();
-                
-                console.log('Data:', data);
+                document.getElementById('content').innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Scraping live data from Limitless Exchange...</p>
+                    </div>
+                `;
 
-                if (!data.success || !data.data) {
+                const res = await fetch('/api/auto-scrape');
+                const result = await res.json();
+                
+                console.log('Scrape result:', result);
+
+                if (!result.success || !result.data) {
                     document.getElementById('message').innerHTML = 
-                        '<div class="message error">⚠️ No data. Run Tampermonkey script on limitless.exchange/leaderboard</div>';
+                        '<div class="message error">❌ Failed to scrape data: ' + (result.error || 'Unknown error') + '</div>';
                     document.getElementById('content').innerHTML = 
-                        '<p>No traders tracked yet.</p>';
+                        '<p style="text-align: center; padding: 20px;">Failed to load data. Try refreshing.</p>';
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Refresh Now';
                     return;
                 }
 
-                const traders = data.data.leaderboard || [];
+                const traders = result.data.leaderboard || [];
                 
+                if (traders.length === 0) {
+                    document.getElementById('message').innerHTML = 
+                        '<div class="message warning">⚠️ No traders found. Limitless might be blocking scraping.</div>';
+                    document.getElementById('content').innerHTML = 
+                        '<p style="text-align: center; padding: 20px;">No data available.</p>';
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Refresh Now';
+                    return;
+                }
+
                 const totalVol = traders.reduce((sum, t) => 
                     sum + parseFloat(t.volume || 0), 0);
                 
                 const avgVol = traders.length > 0 ? totalVol / traders.length : 0;
 
                 document.getElementById('lastUpdated').textContent = 
-                    new Date(data.data.timestamp).toLocaleTimeString();
+                    new Date(result.timestamp).toLocaleTimeString();
                 document.getElementById('tradersCount').textContent = traders.length;
                 document.getElementById('totalVolume').textContent = 
                     '$' + Math.round(totalVol).toLocaleString();
@@ -158,16 +210,24 @@
                 document.getElementById('content').innerHTML = html;
                 
                 document.getElementById('message').innerHTML = 
-                    '<div class="message success">✅ Loaded ' + traders.length + ' traders!</div>';
+                    '<div class="message success">✅ Successfully scraped ' + traders.length + ' traders from Limitless Exchange!</div>';
 
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('message').innerHTML = 
                     '<div class="message error">❌ Error: ' + error.message + '</div>';
+                document.getElementById('content').innerHTML = 
+                    '<p style="text-align: center; padding: 20px;">Failed to load. Try again.</p>';
             }
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh Now';
         }
 
+        // Auto-load on page load
         loadData();
+        
+        // Auto-refresh every 5 minutes
         setInterval(loadData, 5 * 60 * 1000);
     </script>
 </body>
