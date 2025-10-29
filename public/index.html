@@ -15,7 +15,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
@@ -64,6 +64,18 @@
         .section h2 {
             margin-bottom: 20px;
             color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: normal;
         }
 
         table {
@@ -122,6 +134,15 @@
             margin: 20px 0;
         }
 
+        .success {
+            background: #d1fae5;
+            border: 1px solid #6ee7b7;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
         .rank-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -135,61 +156,97 @@
             font-weight: bold;
         }
 
-        .side-yes {
-            background: #10b981;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: bold;
-            font-size: 0.85em;
-        }
-
-        .side-no {
-            background: #ef4444;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: bold;
-            font-size: 0.85em;
-        }
-
-        .sentiment-bar {
-            display: flex;
-            height: 24px;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #e5e7eb;
-        }
-
-        .sentiment-yes {
-            background: #10b981;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.75em;
-            font-weight: bold;
-        }
-
-        .sentiment-no {
-            background: #ef4444;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.75em;
-            font-weight: bold;
+        .market-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
         }
 
         .market-title {
             font-weight: bold;
-            color: #667eea;
-            margin-bottom: 4px;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 1.05em;
         }
 
-        .trader-count {
-            color: #666;
+        .market-stats {
+            display: flex;
+            gap: 20px;
             font-size: 0.9em;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+
+        .sentiment-bar {
+            display: flex;
+            height: 28px;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #e5e7eb;
+            margin-top: 10px;
+        }
+
+        .sentiment-yes {
+            background: linear-gradient(90deg, #10b981, #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .sentiment-no {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .source-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            margin-left: 8px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -221,16 +278,22 @@
         <div id="messageContainer"></div>
 
         <div class="section">
-            <h2>🔥 Hottest Markets (by Top Traders)</h2>
-            <div id="marketsTable">
-                <p style="padding: 20px; text-align: center;">Loading...</p>
+            <h2>🔥 Hottest Markets <span class="badge" id="marketSource">Live</span></h2>
+            <div id="marketsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 15px; color: #6b7280;">Loading markets...</p>
+                </div>
             </div>
         </div>
 
         <div class="section">
             <h2>📊 Top Traders Leaderboard</h2>
             <div id="tradersTable">
-                <p style="padding: 20px; text-align: center;">Loading...</p>
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 15px; color: #6b7280;">Loading traders...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -250,55 +313,50 @@
             try {
                 document.getElementById('messageContainer').innerHTML = '';
                 
-                const response = await fetch('/api/receive-data');
+                const response = await fetch('/api/aggregate');
                 const result = await response.json();
 
                 console.log('API Response:', result);
 
                 if (!result.success) {
-                    showMessage(result.message || 'No data available yet.', 'warning');
-                    resetStats();
+                    showMessage(result.message || 'Error loading data', 'warning');
                     return;
                 }
 
-                const data = result.data;
-                const leaderboard = data.leaderboard || [];
-                const markets = data.markets || {};
-
-                console.log('Leaderboard:', leaderboard.length, 'traders');
-                console.log('Markets:', Object.keys(markets).length);
-
-                // Calculate stats
-                let totalVolume = 0;
-                leaderboard.forEach(trader => {
-                    const vol = parseFloat(trader.volume?.toString().replace(/,/g, '')) || 0;
-                    totalVolume += vol;
-                });
-
                 // Update stats
                 document.getElementById('lastUpdated').textContent = 
-                    new Date(data.timestamp).toLocaleTimeString();
-                document.getElementById('tradersTracked').textContent = formatNumber(leaderboard.length);
-                document.getElementById('totalVolume').textContent = formatCurrency(totalVolume);
-                document.getElementById('marketCount').textContent = Object.keys(markets).length;
-
-                updateMarketsTable(markets);
-                updateTradersTable(leaderboard);
+                    new Date(result.timestamp).toLocaleTimeString();
                 
-                showMessage(`✅ Successfully loaded ${leaderboard.length} traders and ${Object.keys(markets).length} markets!`, 'warning');
+                document.getElementById('tradersTracked').textContent = 
+                    formatNumber(result.leaderboardSize);
+                
+                document.getElementById('totalVolume').textContent = 
+                    formatCurrency(result.totalVolume);
+                
+                document.getElementById('marketCount').textContent = 
+                    formatNumber(result.topMarkets?.length || 0);
+
+                // Update market source badge
+                const sourceText = result.dataSource === 'combined' ? 
+                    `${result.marketsScraped} Scraped + ${result.marketsTracked} Tracked` :
+                    result.dataSource === 'markets-only' ? 
+                    'Live Markets' : 'Cached';
+                document.getElementById('marketSource').textContent = sourceText;
+
+                // Update markets
+                updateMarkets(result.topMarkets || []);
+                
+                // Update traders
+                updateTraders(result.recentTrades || []);
+
+                const msg = result.summary?.message || 
+                          `✅ Loaded ${result.leaderboardSize} traders and ${result.topMarkets?.length || 0} markets`;
+                showMessage(msg, 'success');
 
             } catch (error) {
                 console.error('Error:', error);
-                showMessage('⚠️ No data yet. Run Tampermonkey script and send data.', 'warning');
-                resetStats();
+                showMessage('⚠️ Error loading data. Check console for details.', 'warning');
             }
-        }
-
-        function resetStats() {
-            document.getElementById('lastUpdated').textContent = '--';
-            document.getElementById('tradersTracked').textContent = '--';
-            document.getElementById('totalVolume').textContent = '$--';
-            document.getElementById('marketCount').textContent = '--';
         }
 
         function showMessage(message, type = 'warning') {
@@ -306,63 +364,51 @@
             container.innerHTML = `<div class="${type}">${message}</div>`;
         }
 
-        function updateMarketsTable(markets) {
-            if (!markets || Object.keys(markets).length === 0) {
-                document.getElementById('marketsTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No market data yet. Extract bets using Tampermonkey.</p>';
+        function updateMarkets(markets) {
+            const container = document.getElementById('marketsContainer');
+            
+            if (!markets || markets.length === 0) {
+                container.innerHTML = '<p style="padding: 20px; text-align: center; color: #6b7280;">No markets found yet.</p>';
                 return;
             }
 
-            // Convert to array and sort by trader count
-            const marketArray = Object.values(markets);
-            marketArray.sort((a, b) => b.traders.length - a.traders.length);
+            const html = markets.map((market, index) => {
+                const total = (market.yesCount || 0) + (market.noCount || 0);
+                const yesPercent = total > 0 ? (market.yesCount / total * 100) : (market.probability || 50);
+                const noPercent = 100 - yesPercent;
+                
+                const tradersText = market.traders?.length > 0 ? 
+                    `${market.traders.length} top traders betting` : 
+                    market.volume > 0 ? 
+                    `$${formatNumber(market.volume)} volume` : 
+                    'New market';
 
-            const html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Market</th>
-                            <th>Traders Betting</th>
-                            <th>Sentiment</th>
-                            <th>YES vs NO</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${marketArray.slice(0, 20).map(market => {
-                            const total = market.yesCount + market.noCount;
-                            const yesPercent = total > 0 ? (market.yesCount / total * 100) : 50;
-                            const noPercent = 100 - yesPercent;
-                            
-                            return `
-                                <tr>
-                                    <td>
-                                        <div class="market-title">${market.title.substring(0, 80)}${market.title.length > 80 ? '...' : ''}</div>
-                                        <div class="trader-count">${market.traders.length} top traders betting</div>
-                                    </td>
-                                    <td><strong>${market.traders.length}</strong></td>
-                                    <td>
-                                        <div class="sentiment-bar">
-                                            ${yesPercent > 0 ? `<div class="sentiment-yes" style="width: ${yesPercent}%">${yesPercent > 20 ? yesPercent.toFixed(0) + '% YES' : ''}</div>` : ''}
-                                            ${noPercent > 0 ? `<div class="sentiment-no" style="width: ${noPercent}%">${noPercent > 20 ? noPercent.toFixed(0) + '% NO' : ''}</div>` : ''}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="side-yes">${market.yesCount} YES</span>
-                                        <span class="side-no">${market.noCount} NO</span>
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
-            `;
-            document.getElementById('marketsTable').innerHTML = html;
+                return `
+                    <div class="market-card">
+                        <div class="market-title">
+                            ${index + 1}. ${market.title}
+                            ${market.source ? `<span class="source-badge">${market.source}</span>` : ''}
+                        </div>
+                        <div class="market-stats">
+                            <span>📊 ${tradersText}</span>
+                            ${total > 0 ? `<span>✅ ${market.yesCount} YES | ❌ ${market.noCount} NO</span>` : ''}
+                        </div>
+                        <div class="sentiment-bar">
+                            ${yesPercent > 0 ? `<div class="sentiment-yes" style="width: ${yesPercent}%">${yesPercent > 15 ? Math.round(yesPercent) + '% YES' : ''}</div>` : ''}
+                            ${noPercent > 0 ? `<div class="sentiment-no" style="width: ${noPercent}%">${noPercent > 15 ? Math.round(noPercent) + '% NO' : ''}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
         }
 
-        function updateTradersTable(traders) {
+        function updateTraders(traders) {
+            const container = document.getElementById('tradersTable');
+            
             if (!traders || traders.length === 0) {
-                document.getElementById('tradersTable').innerHTML = 
-                    '<p style="padding: 20px; text-align: center;">No traders found.</p>';
+                container.innerHTML = '<p style="padding: 20px; text-align: center; color: #6b7280;">No traders tracked yet. Run Tampermonkey script.</p>';
                 return;
             }
 
@@ -374,7 +420,7 @@
                             <th>Address</th>
                             <th>Username</th>
                             <th>Volume</th>
-                            <th>Active Bets</th>
+                            <th>Active Positions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -384,16 +430,19 @@
                                 <td><span class="address">${trader.address}</span></td>
                                 <td>${trader.username || '--'}</td>
                                 <td class="volume">${formatCurrency(trader.volume?.toString().replace(/,/g, ''))}</td>
-                                <td><strong>${trader.bets?.length || 0}</strong> positions</td>
+                                <td><strong>${trader.activeBets || 0}</strong> positions</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             `;
-            document.getElementById('tradersTable').innerHTML = html;
+            container.innerHTML = html;
         }
 
+        // Auto-refresh every 5 minutes
         setInterval(loadData, 5 * 60 * 1000);
+        
+        // Load on page load
         loadData();
     </script>
 </body>
