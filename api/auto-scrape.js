@@ -1,70 +1,90 @@
-const cheerio = require('cheerio');
-
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    console.log('🔍 Auto-scraping Limitless leaderboard...');
+    console.log('🔍 Fetching from Limitless API...');
 
-    const response = await fetch('https://limitless.exchange/leaderboard', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    // Try multiple possible API endpoints
+    const endpoints = [
+      'https://api.limitless.exchange/v1/leaderboard',
+      'https://api.limitless.exchange/api/v1/leaderboard',
+      'https://api.limitless.exchange/leaderboard',
+      'https://api.limitless.exchange/users/leaderboard',
+      'https://api.limitless.exchange/api-v1/leaderboard',
+    ];
+
+    let traders = [];
+    let successfulEndpoint = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Trying: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Response:', JSON.stringify(data).substring(0, 200));
+          
+          // Try to parse the response
+          if (Array.isArray(data)) {
+            traders = data;
+            successfulEndpoint = endpoint;
+            break;
+          } else if (data.leaderboard || data.users || data.traders || data.data) {
+            traders = data.leaderboard || data.users || data.traders || data.data;
+            successfulEndpoint = endpoint;
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`Failed ${endpoint}:`, error.message);
+        continue;
       }
-    });
+    }
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    
-    const traders = [];
-    let rank = 1;
-    
-    // Find table rows
-    $('tr').each((index, element) => {
-      if (index === 0) return; // Skip header
-      
-      const $row = $(element);
-      
-      // Find address link
-      const addressLink = $row.find('a[href*="/profile/0x"]').attr('href');
-      if (!addressLink) return;
-      
-      const addressMatch = addressLink.match(/0x[a-fA-F0-9]{40}/);
-      if (!addressMatch) return;
-      
-      const address = addressMatch[0];
-      const username = $row.find('a[href*="/profile/"]').text().trim();
-      
-      // Find volume (last cell)
-      const cells = $row.find('td');
-      const lastCell = cells.last().text().trim();
-      const volumeMatch = lastCell.match(/[\d,]+/);
-      const volume = volumeMatch ? volumeMatch[0].replace(/,/g, '') : '0';
-      
-      traders.push({
-        rank: rank++,
-        address: address,
-        username: username,
-        volume: volume,
-        timestamp: Date.now()
+    if (traders.length === 0) {
+      // Return empty but successful response
+      return res.status(200).json({
+        success: false,
+        error: 'Could not find working API endpoint',
+        hint: 'Please check https://api.limitless.exchange/api-v1 for documentation',
+        testedEndpoints: endpoints
       });
-    });
+    }
 
-    console.log(`✅ Scraped ${traders.length} traders`);
+    // Parse trader data
+    const parsedTraders = traders.slice(0, 250).map((trader, index) => ({
+      rank: trader.rank || index + 1,
+      address: trader.address || trader.wallet || trader.user || 'Unknown',
+      username: trader.username || trader.name || trader.displayName || `User ${index + 1}`,
+      volume: trader.volume || trader.totalVolume || trader.traded || 0,
+      pnl: trader.pnl || trader.profit || 0,
+      timestamp: Date.now()
+    }));
+
+    console.log(`✅ Fetched ${parsedTraders.length} traders from ${successfulEndpoint}`);
 
     res.status(200).json({
       success: true,
       timestamp: Date.now(),
-      traders: traders.length,
+      traders: parsedTraders.length,
+      endpoint: successfulEndpoint,
       data: {
-        leaderboard: traders,
+        leaderboard: parsedTraders,
         markets: {},
         timestamp: Date.now()
       }
     });
 
   } catch (error) {
-    console.error('Scraping error:', error);
+    console.error('API error:', error);
     res.status(500).json({
       success: false,
       error: error.message
