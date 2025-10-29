@@ -1,17 +1,25 @@
-const fs = require('fs');
-
-const DATA_FILE = '/tmp/limitless-data.json';
-
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    // Check if data file exists
-    if (!fs.existsSync(DATA_FILE)) {
+    // Fetch data from receive-data endpoint WITHIN same request
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+    
+    console.log('Fetching from:', `${baseUrl}/api/receive-data`);
+    
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(`${baseUrl}/api/receive-data`);
+    const result = await response.json();
+
+    console.log('Fetch result:', result.success, 'Traders:', result.traders);
+
+    if (!result.success || !result.data) {
       return res.status(200).json({
         success: true,
-        message: '⚠️ No data yet. Extract traders using Tampermonkey script.',
+        message: '⚠️ No data yet. Extract traders using Tampermonkey.',
         leaderboardSize: 0,
         totalActiveTrades: 0,
         totalVolume: 0,
@@ -20,27 +28,22 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Read data from file
-    const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
-    const data = JSON.parse(fileContent);
-    
+    const data = result.data;
     const leaderboard = data.leaderboard || [];
     const markets = data.markets || {};
 
-    console.log(`✅ Serving ${leaderboard.length} traders from file`);
+    console.log(`✅ Processing ${leaderboard.length} traders`);
 
-    // Calculate total volume
     const totalVolume = leaderboard.reduce((sum, t) => {
       return sum + parseFloat(t.volume?.toString().replace(/,/g, '') || 0);
     }, 0);
 
-    // Convert markets to array
     const marketsArray = Object.values(markets);
 
     res.status(200).json({
       success: true,
       timestamp: data.timestamp || Date.now(),
-      dataSource: 'file',
+      dataSource: 'memory',
       leaderboardSize: leaderboard.length,
       totalActiveTrades: leaderboard.length,
       totalVolume: totalVolume,
