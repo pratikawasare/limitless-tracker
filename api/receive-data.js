@@ -1,15 +1,13 @@
-const fs = require('fs');
-const path = require('path');
-
-const DATA_FILE = '/tmp/limitless-data.json';
+// Store data in memory using global variable
+if (!global.limitlessData) {
+  global.limitlessData = null;
+}
 
 module.exports = async (req, res) => {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -21,7 +19,6 @@ module.exports = async (req, res) => {
       console.log('📥 Received data from Tampermonkey');
       console.log('Traders:', data.leaderboard?.length || 0);
       
-      // Validate data
       if (!data || !data.leaderboard) {
         return res.status(400).json({
           success: false,
@@ -29,23 +26,22 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Add received timestamp
       data.receivedAt = Date.now();
-
-      // Write to file
-      fs.writeFileSync(DATA_FILE, JSON.stringify(data));
       
-      console.log(`✅ Stored ${data.leaderboard.length} traders to file`);
+      // Store in global memory
+      global.limitlessData = data;
+      
+      console.log(`✅ Stored ${data.leaderboard.length} traders in memory`);
 
       return res.status(200).json({
         success: true,
-        message: 'Data received and stored successfully',
+        message: 'Data stored in memory',
         traders: data.leaderboard.length,
         timestamp: data.timestamp
       });
 
     } catch (error) {
-      console.error('Error receiving data:', error);
+      console.error('Error:', error);
       return res.status(500).json({
         success: false,
         error: error.message
@@ -53,35 +49,21 @@ module.exports = async (req, res) => {
     }
   }
 
-  // GET request - return stored data
+  // GET request
   if (req.method === 'GET') {
-    try {
-      if (!fs.existsSync(DATA_FILE)) {
-        return res.status(404).json({
-          success: false,
-          message: 'No data available yet. Please extract data from Tampermonkey first.'
-        });
-      }
-
-      const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
-      const data = JSON.parse(fileContent);
-
-      return res.status(200).json({
-        success: true,
-        data: data,
-        traders: data.leaderboard?.length || 0
-      });
-
-    } catch (error) {
-      return res.status(500).json({
+    if (!global.limitlessData) {
+      return res.status(404).json({
         success: false,
-        error: error.message
+        message: 'No data yet'
       });
     }
+
+    return res.status(200).json({
+      success: true,
+      data: global.limitlessData,
+      traders: global.limitlessData.leaderboard?.length || 0
+    });
   }
 
-  return res.status(405).json({
-    success: false,
-    error: 'Method not allowed'
-  });
+  return res.status(405).json({ success: false, error: 'Method not allowed' });
 };
