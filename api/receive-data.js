@@ -41,9 +41,7 @@ module.exports = async (req, res) => {
         success: true,
         message: 'Data received and stored successfully',
         traders: data.leaderboard.length,
-        markets: Object.keys(data.markets || {}).length,
-        timestamp: data.timestamp,
-        storedAt: DATA_FILE
+        timestamp: data.timestamp
       });
 
     } catch (error) {
