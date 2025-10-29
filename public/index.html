@@ -88,27 +88,6 @@
             background: #f5f5f5;
         }
 
-        .loading {
-            text-align: center;
-            padding: 40px;
-            font-size: 1.2em;
-        }
-
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top: 4px solid #fff;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .refresh-btn {
             background: #667eea;
             color: white;
@@ -149,17 +128,68 @@
             padding: 6px 12px;
             border-radius: 6px;
             font-weight: bold;
-            font-size: 1em;
         }
 
         .volume {
             color: #10b981;
             font-weight: bold;
-            font-size: 1.1em;
         }
 
-        .pnl {
+        .side-yes {
+            background: #10b981;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
             font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .side-no {
+            background: #ef4444;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .sentiment-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+
+        .sentiment-yes {
+            background: #10b981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .sentiment-no {
+            background: #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .market-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .trader-count {
+            color: #666;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -181,8 +211,8 @@
                 <div class="value" id="totalVolume">$--</div>
             </div>
             <div class="stat-card">
-                <h3>Avg Per Trader</h3>
-                <div class="value" id="avgVolume">$--</div>
+                <h3>Hot Markets</h3>
+                <div class="value" id="marketCount">--</div>
             </div>
         </div>
 
@@ -191,12 +221,16 @@
         <div id="messageContainer"></div>
 
         <div class="section">
+            <h2>🔥 Hottest Markets (by Top Traders)</h2>
+            <div id="marketsTable">
+                <p style="padding: 20px; text-align: center;">Loading...</p>
+            </div>
+        </div>
+
+        <div class="section">
             <h2>📊 Top Traders Leaderboard</h2>
             <div id="tradersTable">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Loading data...
-                </div>
+                <p style="padding: 20px; text-align: center;">Loading...</p>
             </div>
         </div>
     </div>
@@ -229,9 +263,10 @@
 
                 const data = result.data;
                 const leaderboard = data.leaderboard || [];
+                const markets = data.markets || {};
 
                 console.log('Leaderboard:', leaderboard.length, 'traders');
-                console.log('Sample:', leaderboard[0]);
+                console.log('Markets:', Object.keys(markets).length);
 
                 // Calculate stats
                 let totalVolume = 0;
@@ -239,21 +274,22 @@
                     const vol = parseFloat(trader.volume?.toString().replace(/,/g, '')) || 0;
                     totalVolume += vol;
                 });
-                const avgVolume = leaderboard.length > 0 ? totalVolume / leaderboard.length : 0;
 
                 // Update stats
                 document.getElementById('lastUpdated').textContent = 
                     new Date(data.timestamp).toLocaleTimeString();
                 document.getElementById('tradersTracked').textContent = formatNumber(leaderboard.length);
                 document.getElementById('totalVolume').textContent = formatCurrency(totalVolume);
-                document.getElementById('avgVolume').textContent = formatCurrency(avgVolume);
+                document.getElementById('marketCount').textContent = Object.keys(markets).length;
 
-                updateTable(leaderboard);
-                showMessage(`✅ Successfully loaded ${leaderboard.length} traders!`, 'warning');
+                updateMarketsTable(markets);
+                updateTradersTable(leaderboard);
+                
+                showMessage(`✅ Successfully loaded ${leaderboard.length} traders and ${Object.keys(markets).length} markets!`, 'warning');
 
             } catch (error) {
                 console.error('Error:', error);
-                showMessage('⚠️ No data yet. Visit limitless.exchange/leaderboard and click "Send to Vercel".', 'warning');
+                showMessage('⚠️ No data yet. Run Tampermonkey script and send data.', 'warning');
                 resetStats();
             }
         }
@@ -262,9 +298,7 @@
             document.getElementById('lastUpdated').textContent = '--';
             document.getElementById('tradersTracked').textContent = '--';
             document.getElementById('totalVolume').textContent = '$--';
-            document.getElementById('avgVolume').textContent = '$--';
-            document.getElementById('tradersTable').innerHTML = 
-                '<p style="padding: 20px; text-align: center;">No data available.</p>';
+            document.getElementById('marketCount').textContent = '--';
         }
 
         function showMessage(message, type = 'warning') {
@@ -272,7 +306,60 @@
             container.innerHTML = `<div class="${type}">${message}</div>`;
         }
 
-        function updateTable(traders) {
+        function updateMarketsTable(markets) {
+            if (!markets || Object.keys(markets).length === 0) {
+                document.getElementById('marketsTable').innerHTML = 
+                    '<p style="padding: 20px; text-align: center;">No market data yet. Extract bets using Tampermonkey.</p>';
+                return;
+            }
+
+            // Convert to array and sort by trader count
+            const marketArray = Object.values(markets);
+            marketArray.sort((a, b) => b.traders.length - a.traders.length);
+
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Market</th>
+                            <th>Traders Betting</th>
+                            <th>Sentiment</th>
+                            <th>YES vs NO</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${marketArray.slice(0, 20).map(market => {
+                            const total = market.yesCount + market.noCount;
+                            const yesPercent = total > 0 ? (market.yesCount / total * 100) : 50;
+                            const noPercent = 100 - yesPercent;
+                            
+                            return `
+                                <tr>
+                                    <td>
+                                        <div class="market-title">${market.title.substring(0, 80)}${market.title.length > 80 ? '...' : ''}</div>
+                                        <div class="trader-count">${market.traders.length} top traders betting</div>
+                                    </td>
+                                    <td><strong>${market.traders.length}</strong></td>
+                                    <td>
+                                        <div class="sentiment-bar">
+                                            ${yesPercent > 0 ? `<div class="sentiment-yes" style="width: ${yesPercent}%">${yesPercent > 20 ? yesPercent.toFixed(0) + '% YES' : ''}</div>` : ''}
+                                            ${noPercent > 0 ? `<div class="sentiment-no" style="width: ${noPercent}%">${noPercent > 20 ? noPercent.toFixed(0) + '% NO' : ''}</div>` : ''}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="side-yes">${market.yesCount} YES</span>
+                                        <span class="side-no">${market.noCount} NO</span>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('marketsTable').innerHTML = html;
+        }
+
+        function updateTradersTable(traders) {
             if (!traders || traders.length === 0) {
                 document.getElementById('tradersTable').innerHTML = 
                     '<p style="padding: 20px; text-align: center;">No traders found.</p>';
@@ -287,8 +374,7 @@
                             <th>Address</th>
                             <th>Username</th>
                             <th>Volume</th>
-                            <th>P&L</th>
-                            <th>Win Rate</th>
+                            <th>Active Bets</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -298,8 +384,7 @@
                                 <td><span class="address">${trader.address}</span></td>
                                 <td>${trader.username || '--'}</td>
                                 <td class="volume">${formatCurrency(trader.volume?.toString().replace(/,/g, ''))}</td>
-                                <td class="pnl">${formatCurrency(trader.pnl?.toString().replace(/,/g, ''))}</td>
-                                <td>${trader.winRate || '--'}%</td>
+                                <td><strong>${trader.bets?.length || 0}</strong> positions</td>
                             </tr>
                         `).join('')}
                     </tbody>
